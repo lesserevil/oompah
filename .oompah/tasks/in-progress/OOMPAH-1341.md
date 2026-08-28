@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-26T16:14:26.107948Z'
-updated_at: '2026-08-28T01:12:53.763502Z'
+updated_at: '2026-08-28T01:19:59.550944Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -342,5 +342,28 @@ DISCOVERY: The implementation is already in place on the origin/OOMPAH-1341 bran
 4. All 17 integration tests passing
 
 Next: Verify the durable workflow tick integration and test coverage.
+---
+author: oompah
+created: 2026-08-28 01:19
+---
+IMPLEMENTATION: The solution is complete and addresses all requirements:
+
+1. ✓ Stalled-task watchdog scheduled from durable workflow tick via _run_non_lifecycle_housekeeping()
+   - Uses _run_maintenance_job with configurable interval (default 300s, configurable via OOMPAH_STALLED_TASK_WATCHDOG_INTERVAL_SECONDS)
+   - Maintains single-writer TaskTransitionService authority
+   - Does not reintroduce legacy lifecycle sweeps
+
+2. ✓ Stale-review cleanup job at same interval
+   - Uses fresh authoritative open-review listing from forge provider
+   - Closes reviews when: exact head is ancestor of target OR all commits are patch-equivalent (git cherry)
+   - Never closes on: missing head/target, provider errors, unique commits, wrong target, active review work
+   - Releases exact review capacity after successful close
+   - Fails closed on all error conditions
+
+3. ✓ Public maintenance snapshot exposes both jobs
+   - stalled_task_watchdog: run_id, tasks_audited, actions_taken, started_at, finished_at
+   - stale_review_cleanup: projects_scanned, reviews_scanned, reviews_closed, reviews_skipped, decisions, errors, last_run_at
+
+All 127 stalled_task_watchdog tests passing, including integration tests verifying durable scheduling.
 ---
 <!-- COMMENTS:END -->
