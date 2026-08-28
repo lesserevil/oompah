@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-26T16:14:26.107948Z'
-updated_at: '2026-08-28T01:19:59.550944Z'
+updated_at: '2026-08-28T01:20:41.699121Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -365,5 +365,24 @@ IMPLEMENTATION: The solution is complete and addresses all requirements:
    - stale_review_cleanup: projects_scanned, reviews_scanned, reviews_closed, reviews_skipped, decisions, errors, last_run_at
 
 All 127 stalled_task_watchdog tests passing, including integration tests verifying durable scheduling.
+---
+author: oompah
+created: 2026-08-28 01:20
+---
+VERIFICATION: All tests passing:
+
+✓ 127 tests in test_stalled_task_watchdog.py - all PASSED
+✓ 34 tests in test_workflow_retirement_architecture.py - all PASSED
+✓ 1 test in test_state_api_responsiveness.py::TestWebSocketBroadcastMaintenanceStatus - PASSED
+
+Key acceptance criteria verified:
+✓ Durable runtime tick schedules watchdog remediation at configured interval (default 300s, configurable)
+✓ Watchdog remains coalesced/interval-gated using authoritative transition service
+✓ Fresh provider listing failure closes nothing (fail closed)
+✓ Exact target-contained and patch-equivalent reviews close and release exact capacity
+✓ Unique commits, wrong target, missing head fail closed
+✓ Public maintenance snapshot exposes both stalled_task_watchdog and stale_review_cleanup results
+
+Branch rebased from origin/OOMPAH-1341 and pushed.
 ---
 <!-- COMMENTS:END -->
