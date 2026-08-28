@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1350
 type: task
-status: Ready to Integrate
+status: In Validation
 priority: null
 title: Correct GitLab merge queue semantics and stale Trickle MR handling
 parent: null
@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-28T00:26:02.119960Z'
+updated_at: '2026-08-28T00:46:04.831277Z'
 work_branch: OOMPAH-1350
 target_branch: null
 review_url: null
@@ -26,7 +26,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 782737cb-2e24-4b6d-8b3f-f7499ae4e544
   request_fingerprint: a28c72be488724c2d094a1252a00e1084bb0ce87b25f541009301b04c8b11756
-oompah.lifecycle_revision: 3
+oompah.lifecycle_revision: 4
 oompah.integration:
   version: 2
   state: ready
@@ -39,6 +39,38 @@ oompah.integration:
   submitted_at: '2026-08-28T00:25:31.971877+00:00'
   updated_at: '2026-08-28T00:25:31.971877+00:00'
 oompah.work_branch: OOMPAH-1350
+oompah.terminal_audit:
+  queued_comment_posted: true
+  oompah.terminal_audit_tracker_projections:
+  - version: 1
+    audit_id: audit-3840ab410f74
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1350
+    digest: 7e7dd7858780495519f22dde40b5909e555801f27b2b3f1c9a035dad27d837ed
+  version: 1
+  pending_chain:
+  - version: 1
+    audit_id: audit-3840ab410f74
+    project_id: proj-14849f1b
+    task_id: OOMPAH-1350
+    target_state: Done
+    request_state: pending
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 7e7dd7858780495519f22dde40b5909e555801f27b2b3f1c9a035dad27d837ed
+    attempts: []
+    source_generation: 1
+    requested_by:
+      version: 1
+      identity: oompah-cli
+      source: api
+    previous_state: Ready to Integrate
+    created_at: '2026-08-28T00:45:57.761934+00:00'
+    eligible_at: '2026-08-28T00:45:57.761934+00:00'
+    selected_ref: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
+    selected_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
+  attempt_history: []
 ---
 ## Summary
 
@@ -128,5 +160,10 @@ author: oompah
 created: 2026-08-28 00:25
 ---
 Fixed and deployed GitLab merge-train handling in PR #967 plus GitLab 17.4 compatibility in PR #968. Exact deployed head 27272beda. Full gate: 20,459 passed, 7 skipped, 2 xfailed. Closed stale/mismatched Trickle MRs and released leaked review capacity. Controlled canary remains paused pending unrelated exhausted Trickle workflow dispositions.
+---
+author: oompah
+created: 2026-08-28 00:46
+---
+Queued for terminal transition to Done. An auditor will review and apply the terminal status.
 ---
 <!-- COMMENTS:END -->
