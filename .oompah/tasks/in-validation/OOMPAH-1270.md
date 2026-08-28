@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-20T03:44:19.586130Z'
-updated_at: '2026-08-27T23:58:44.540064Z'
+updated_at: '2026-08-28T00:05:03.775327Z'
 work_branch: OOMPAH-1270
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/964
@@ -254,12 +254,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1270
     target_state: Merged
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: 48663fbd8e8cdf192c52a9d92d9d596d34427cecd1ec34b46ce7b281e3caa79f
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-527066850679
+      target_state: Merged
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: 48663fbd8e8cdf192c52a9d92d9d596d34427cecd1ec34b46ce7b281e3caa79f
+      created_at: '2026-08-28T00:04:53.498878+00:00'
+      provider_id: prov-651d553c
+      model: sonnet
+      started_at: '2026-08-28T00:04:53.498878+00:00'
+      branch_key: OOMPAH-1270
+      selected_ref: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
+      selected_sha: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
     source_generation: 1
     requested_by:
       version: 1
@@ -270,7 +285,7 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-7d6970c3bdd8
     selected_ref: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
     selected_sha: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
-    updated_at: '2026-08-27T23:57:49.480578+00:00'
+    updated_at: '2026-08-28T00:04:53.498878+00:00'
     eligible_at: '2026-08-27T23:57:49.480578+00:00'
   attempt_history:
   - version: 1
@@ -285,6 +300,21 @@ oompah.terminal_audit:
     provider_id: prov-651d553c
     model: sonnet
     started_at: '2026-08-27T23:49:08.197779+00:00'
+    branch_key: OOMPAH-1270
+    selected_ref: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
+    selected_sha: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
+  - version: 1
+    attempt_id: attempt-527066850679
+    target_state: Merged
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: 48663fbd8e8cdf192c52a9d92d9d596d34427cecd1ec34b46ce7b281e3caa79f
+    created_at: '2026-08-28T00:04:53.498878+00:00'
+    provider_id: prov-651d553c
+    model: sonnet
+    started_at: '2026-08-28T00:04:53.498878+00:00'
     branch_key: OOMPAH-1270
     selected_ref: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
     selected_sha: 709a6f39898d8bbc6aa1969a7042b1c197304cf0
@@ -509,5 +539,15 @@ Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
 - Cost: $0.0000
 - Exit: normal, Duration: 9m 27s
 - Log: OOMPAH-1270__20260827T234929Z.jsonl
+---
+author: oompah
+created: 2026-08-28 00:04
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/sonnet)
+---
+author: oompah
+created: 2026-08-28 00:05
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
