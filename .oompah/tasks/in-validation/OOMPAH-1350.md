@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-28T01:19:38.468211Z'
+updated_at: '2026-08-28T01:22:41.398232Z'
 work_branch: OOMPAH-1350
 target_branch: null
 review_url: null
@@ -179,12 +179,27 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1350
     target_state: Done
-    request_state: pending
+    request_state: in_progress
     evidence_fingerprint:
       version: 1
       algorithm: sha256
       digest: b5c764a403455a693182d1e5e178c1cf259eea5febaa1591bb7866e3ae6be756
-    attempts: []
+    attempts:
+    - version: 1
+      attempt_id: attempt-2e06630e7922
+      target_state: Done
+      request_state: in_progress
+      evidence_fingerprint:
+        version: 1
+        algorithm: sha256
+        digest: b5c764a403455a693182d1e5e178c1cf259eea5febaa1591bb7866e3ae6be756
+      created_at: '2026-08-28T01:22:29.444004+00:00'
+      provider_id: prov-651d553c
+      model: haiku
+      started_at: '2026-08-28T01:22:29.444004+00:00'
+      branch_key: OOMPAH-1350
+      selected_ref: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
+      selected_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
     source_generation: 2
     requested_by:
       version: 1
@@ -195,6 +210,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-28T01:19:33.376112+00:00'
     selected_ref: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
     selected_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
+    updated_at: '2026-08-28T01:22:29.444004+00:00'
   - version: 1
     audit_id: audit-e9f1660b2856
     project_id: proj-14849f1b
@@ -270,6 +286,21 @@ oompah.terminal_audit:
     selected_ref: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
     selected_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
     candidate_rotation_count: 2
+  - version: 1
+    attempt_id: attempt-2e06630e7922
+    target_state: Done
+    request_state: in_progress
+    evidence_fingerprint:
+      version: 1
+      algorithm: sha256
+      digest: b5c764a403455a693182d1e5e178c1cf259eea5febaa1591bb7866e3ae6be756
+    created_at: '2026-08-28T01:22:29.444004+00:00'
+    provider_id: prov-651d553c
+    model: haiku
+    started_at: '2026-08-28T01:22:29.444004+00:00'
+    branch_key: OOMPAH-1350
+    selected_ref: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
+    selected_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
 oompah.task_costs:
   total_input_tokens: 325
   total_output_tokens: 12189
@@ -486,5 +517,15 @@ author: oompah
 created: 2026-08-28 01:17
 ---
 Branch quality gate passed for `27272beda8ff9a52da08f138e01f285c3a3fdbd5` using `make test` in 185.8s. Review creation may proceed.
+---
+author: oompah
+created: 2026-08-28 01:22
+---
+Auditor dispatched (attempt #1, candidate: prov-651d553c/haiku)
+---
+author: oompah
+created: 2026-08-28 01:22
+---
+Focus: Completion Auditor
 ---
 <!-- COMMENTS:END -->
