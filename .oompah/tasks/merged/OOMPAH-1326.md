@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-21T09:43:03.353905Z'
-updated_at: '2026-08-28T00:42:43.887128Z'
+updated_at: '2026-08-28T00:42:50.246481Z'
 work_branch: OOMPAH-1326
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/963
@@ -214,8 +214,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-064ddddc5d37
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-28T00:42:39.142496+00:00'
+    applied_at: '2026-08-28T00:42:48.418906+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -611,5 +612,22 @@ author: oompah
 created: 2026-08-28 00:38
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-28 00:42
+---
+Audit PASS — Merged
+
+Audit PASS — Merged. Implementation verified: `CheckpointQueue.flush()` now accepts `_timer_based` flag; timer-based failures (debounce, max-delay) log at WARNING to suppress error_watcher auto-filing; manual/critical failures continue to log at ERROR. All 4 focused tests pass on SHA 0d9de7856326baaee84418eaf7c6fb8848f1b3e1. Full gate `make test` passed (185.8s) for the same SHA. No regressions observed. Acceptance criteria satisfied.
+
+Safe evidence:
+- full_gate: make test passed (185.8s) for SHA 0d9de7856326baaee84418eaf7c6fb8848f1b3e1
+- focused_test_1: test_timer_based_flush_logs_warning_not_error: PASSED
+- focused_test_2: test_manual_flush_logs_error_not_warning: PASSED
+- focused_test_3: test_checkpoint_push_failure_counter_values_collapse: PASSED
+- focused_test_4: test_checkpoint_trigger_reasons_share_explicit_incident: PASSED
+- key_change: flush(_timer_based=True) logs at WARNING (lines 230-241); flush(_timer_based=False) logs at ERROR (lines 242-251)
+- timer_flush_callsite: _timer_flush() passes _timer_based=True at checkpoint_queue.py line 344
+- implementation_sha: 0d9de7856326baaee84418eaf7c6fb8848f1b3e1
 ---
 <!-- COMMENTS:END -->
