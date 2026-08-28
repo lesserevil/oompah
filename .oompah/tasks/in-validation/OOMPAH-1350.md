@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-28T01:22:41.398232Z'
+updated_at: '2026-08-28T01:28:14.225440Z'
 work_branch: OOMPAH-1350
 target_branch: null
 review_url: null
@@ -61,6 +61,7 @@ oompah.terminal_audit:
   applied_result_attempts:
     '["proj-14849f1b","OOMPAH-1350","audit-3840ab410f74","attempt-755b206caf1c"]': '2026-08-28T00:53:58.001224+00:00'
     '["proj-14849f1b","OOMPAH-1350","audit-3840ab410f74","attempt-c675f1ffbc05"]': '2026-08-28T01:01:45.716000+00:00'
+    '["proj-14849f1b","OOMPAH-1350","audit-fc9131994565","attempt-2e06630e7922"]': '2026-08-28T01:28:04.866779+00:00'
   oompah.terminal_audit_retirements:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1350
@@ -75,6 +76,19 @@ oompah.terminal_audit:
     kind: result
     applied: true
     retired_at: '2026-08-28T01:01:45.716015+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1350
+    target_state: Done
+    evidence_fingerprint: b5c764a403455a693182d1e5e178c1cf259eea5febaa1591bb7866e3ae6be756
+    workflow_revision: null
+    selected_ref: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
+    selected_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
+    landing_revision: null
+    audit_ids:
+    - audit-fc9131994565
+    kind: result
+    applied: true
+    retired_at: '2026-08-28T01:28:04.866799+00:00'
   oompah.terminal_audit_result_intents:
   - project_id: proj-14849f1b
     task_id: OOMPAH-1350
@@ -89,6 +103,19 @@ oompah.terminal_audit:
     applied: true
     created_at: '2026-08-28T01:01:45.716025+00:00'
     applied_at: '2026-08-28T01:01:55.085631+00:00'
+  - project_id: proj-14849f1b
+    task_id: OOMPAH-1350
+    audit_id: audit-fc9131994565
+    attempt_id: attempt-2e06630e7922
+    target_state: Done
+    evidence_fingerprint: b5c764a403455a693182d1e5e178c1cf259eea5febaa1591bb7866e3ae6be756
+    status: In Validation
+    audit_ids:
+    - audit-fc9131994565
+    kind: result
+    applied: true
+    created_at: '2026-08-28T01:28:04.866811+00:00'
+    applied_at: '2026-08-28T01:28:12.888133+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -179,7 +206,7 @@ oompah.terminal_audit:
     project_id: proj-14849f1b
     task_id: OOMPAH-1350
     target_state: Done
-    request_state: in_progress
+    request_state: completed
     evidence_fingerprint:
       version: 1
       algorithm: sha256
@@ -188,7 +215,7 @@ oompah.terminal_audit:
     - version: 1
       attempt_id: attempt-2e06630e7922
       target_state: Done
-      request_state: in_progress
+      request_state: completed
       evidence_fingerprint:
         version: 1
         algorithm: sha256
@@ -200,6 +227,9 @@ oompah.terminal_audit:
       branch_key: OOMPAH-1350
       selected_ref: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
       selected_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
+      verdict: pass
+      completed_at: '2026-08-28T01:28:04.866611+00:00'
+      ended_at: '2026-08-28T01:28:04.866611+00:00'
     source_generation: 2
     requested_by:
       version: 1
@@ -210,7 +240,7 @@ oompah.terminal_audit:
     eligible_at: '2026-08-28T01:19:33.376112+00:00'
     selected_ref: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
     selected_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
-    updated_at: '2026-08-28T01:22:29.444004+00:00'
+    updated_at: '2026-08-28T01:28:04.866611+00:00'
   - version: 1
     audit_id: audit-e9f1660b2856
     project_id: proj-14849f1b
@@ -232,6 +262,8 @@ oompah.terminal_audit:
     prerequisite_audit_id: audit-fc9131994565
     selected_ref: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
     selected_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
+    updated_at: '2026-08-28T01:28:04.866611+00:00'
+    eligible_at: '2026-08-28T01:28:04.866611+00:00'
   attempt_history:
   - version: 1
     attempt_id: attempt-755b206caf1c
@@ -527,5 +559,20 @@ author: oompah
 created: 2026-08-28 01:22
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-28 01:28
+---
+Audit PASS — Done
+
+[REDACTED]
+
+Safe evidence:
+- implementation_files: oompah/scm.py (enable_auto_merge_exact, _active_merge_train_entries, _merge_train_entry), oompah/orchestrator.py (_do_stale_review_cleanup), oompah/integration_workflow.py (_reclassify_invalid_parented_standalone)
+- test_coverage: tests/test_scm.py::TestGitLab::test_exact_enqueue_posts_to_merge_train_with_sha, test_disabled_merge_trains_returns_actionable_error, test_maps_active_gitlab_merge_train
+- documentation: docs/project-bootstrap.md (lines 321-332), oompah/templates/projects.html (Merge Train UI), oompah/templates/reviews.html (queue status)
+- quality_gate: make test passed: 20459 passed, 7 skipped, 2 xfailed in 186 seconds
+- head_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
+- deployment: PR #967 merged as 621a590 + PR #968 merged as 27272beda
 ---
 <!-- COMMENTS:END -->
