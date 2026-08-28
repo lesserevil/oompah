@@ -11,7 +11,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-26T16:14:26.107948Z'
-updated_at: '2026-08-28T01:21:25.213983Z'
+updated_at: '2026-08-28T01:35:34.487704Z'
 work_branch: OOMPAH-1341
 target_branch: null
 review_url: null
@@ -401,5 +401,19 @@ author: oompah
 created: 2026-08-28 01:21
 ---
 Implemented stalled-task watchdog and stale-review cleanup in durable mode. Watchdog now runs at configurable interval (default 300s) through maintenance lane while preserving TaskTransitionService authority. Added separate review cleanup job that closes obsolete reviews and releases capacity. Both jobs' results exposed in public maintenance snapshot. All 127 stalled_task_watchdog tests passing.
+---
+author: oompah
+created: 2026-08-28 01:35
+---
+Superseded review preserved during standalone Ready reconciliation.
+
+Review: https://github.com/lesserevil/oompah/pull/938
+Reviewed head: `410457b8b4274febde18bb904861e8cd47aec397`
+Accepted submission head: `ac620e63b565eaf304b4b4656af83c50b49e9f15`
+Source branch: `OOMPAH-1341`
+Target branch: `main`
+Reason: review head 410457b8b4274febde18bb904861e8cd47aec397 does not match accepted submission head ac620e63b565eaf304b4b4656af83c50b49e9f15
+
+This review remains historical evidence. The accepted submission will continue through an exact-head gate and review.
 ---
 <!-- COMMENTS:END -->
