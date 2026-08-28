@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-25T02:00:38.960190Z'
-updated_at: '2026-08-28T00:15:10.782758Z'
+updated_at: '2026-08-28T00:15:16.590641Z'
 work_branch: OOMPAH-1337
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/961
@@ -201,8 +201,9 @@ oompah.terminal_audit:
     audit_ids:
     - audit-111406ccdf98
     kind: result
-    applied: false
+    applied: true
     created_at: '2026-08-28T00:15:06.487730+00:00'
+    applied_at: '2026-08-28T00:15:15.125364+00:00'
   version: 1
   pending_chain:
   - version: 1
@@ -487,5 +488,24 @@ author: oompah
 created: 2026-08-28 00:12
 ---
 Focus: Completion Auditor
+---
+author: oompah
+created: 2026-08-28 00:15
+---
+Audit PASS — Merged
+
+[REDACTED]
+
+Safe evidence:
+- fix_file: oompah/orchestrator.py
+- fix_line: 15370
+- fix_change: logger.exception -> logger.warning
+- fix_message: Orchestrator shutdown attempt failed; retaining process and retrying
+- new_test: tests/test_restart_api.py:982 test_stop_until_safe_retries_on_exception_without_error_level
+- existing_test: tests/test_restart_api.py:920 test_safe_stop_retries_retired_snapshot_without_backend_error
+- gate_sha: f963602b000272ee9e27e0eb3258de0daa95fb84
+- gate_result: passed
+- gate_duration_seconds: 191.3
+- gate_authority_current: true
 ---
 <!-- COMMENTS:END -->
