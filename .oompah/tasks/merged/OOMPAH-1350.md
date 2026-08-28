@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-28T01:33:01.048714Z'
+updated_at: '2026-08-28T01:33:17.455433Z'
 work_branch: OOMPAH-1350
 target_branch: null
 review_url: null
@@ -394,13 +394,13 @@ oompah.terminal_audit:
     selected_ref: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
     selected_sha: 27272beda8ff9a52da08f138e01f285c3a3fdbd5
 oompah.task_costs:
-  total_input_tokens: 599
-  total_output_tokens: 22942
+  total_input_tokens: 833
+  total_output_tokens: 28907
   total_cost_usd: 0.0
   by_model:
     unknown:
-      input_tokens: 599
-      output_tokens: 22942
+      input_tokens: 833
+      output_tokens: 28907
       cost_usd: 0.0
   runs:
   - profile: auditor
@@ -427,6 +427,12 @@ oompah.task_costs:
     output_tokens: 10753
     cost_usd: 0.0
     recorded_at: '2026-08-28T01:28:25.823901+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 234
+    output_tokens: 5965
+    cost_usd: 0.0
+    recorded_at: '2026-08-28T01:33:13.303161+00:00'
 ---
 ## Summary
 
@@ -684,5 +690,15 @@ Safe evidence:
 - quality_gate: make test: 20459 passed, 7 skipped, 2 xfailed in 185.7s for SHA 27272beda8ff9a52da08f138e01f285c3a3fdbd5
 - deployment: PR #967 → 621a590, PR #968 → 27272beda (current head)
 - acceptance: Merge-train policy respected, no unfenced enqueue, stale MRs fenced, capacity released, all gates pass
+---
+author: oompah
+created: 2026-08-28 01:33
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/haiku]
+- Turns: 60, Tool calls: 28
+- Tokens: 234 in / 6.0K out [6.2K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 4m 36s
+- Log: OOMPAH-1350__20260828T012853Z.jsonl
 ---
 <!-- COMMENTS:END -->
