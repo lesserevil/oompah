@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-27T23:34:47.951794Z'
+updated_at: '2026-08-28T00:00:49.341120Z'
 work_branch: null
 target_branch: null
 review_url: null
@@ -101,5 +101,10 @@ author: oompah
 created: 2026-08-27 23:28
 ---
 Implementation and production cleanup are complete. Attempts to stage the final Done transition currently return 503 because Oompah project workflow is paused/excluded; leaving the task Open with this explicit owner handoff rather than bypassing terminal validation. Merge/deploy/validation evidence is recorded above.
+---
+author: oompah
+created: 2026-08-28 00:00
+---
+Follow-up compatibility fix PR #968 merged as 27272beda and deployed with make graceful. The exact-head merge-train request now uses GitLab 17.4 `when_pipeline_succeeds` plus `sha` (the production GitLab version is 17.4.6); focused compatibility suite passed 639 tests / 2 skipped and CI passed. All stale Trickle MRs are closed, capacity reservations released, and Trickle remains paused.
 ---
 <!-- COMMENTS:END -->
