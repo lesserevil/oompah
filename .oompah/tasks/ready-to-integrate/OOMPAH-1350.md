@@ -1,7 +1,7 @@
 ---
 id: OOMPAH-1350
 type: task
-status: In Progress
+status: Ready to Integrate
 priority: null
 title: Correct GitLab merge queue semantics and stale Trickle MR handling
 parent: null
@@ -13,7 +13,7 @@ labels:
 - priority:p0
 assignee: null
 created_at: '2026-08-27T19:29:03.022770Z'
-updated_at: '2026-08-28T00:25:43.434353Z'
+updated_at: '2026-08-28T00:26:02.119960Z'
 work_branch: OOMPAH-1350
 target_branch: null
 review_url: null
@@ -26,7 +26,7 @@ oompah.create_once:
   operation_kind: api_task_create
   creation_marker: 782737cb-2e24-4b6d-8b3f-f7499ae4e544
   request_fingerprint: a28c72be488724c2d094a1252a00e1084bb0ce87b25f541009301b04c8b11756
-oompah.lifecycle_revision: 2
+oompah.lifecycle_revision: 3
 oompah.integration:
   version: 2
   state: ready
