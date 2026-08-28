@@ -154,7 +154,7 @@ class CheckpointQueue:
             self._max_delay_ms / 1000.0,
         )
 
-    def flush(self, *, reason: str) -> int:
+    def flush(self, *, reason: str, _timer_based: bool = False) -> int:
         """Flush all pending mutations immediately.
 
         Cancels both timers, resets the pending counter, and calls ``flush_fn``
@@ -167,6 +167,10 @@ class CheckpointQueue:
             Human-readable reason string logged at DEBUG level and used in
             the commit message when available (e.g. ``"terminal_status"``,
             ``"human_edit"``, ``"shutdown"``, ``"debounce"``, ``"max_delay"``).
+        _timer_based:
+            Internal flag indicating this is a timer-based call (debounce or
+            max-delay).  Timer-based failures are logged at WARNING level instead
+            of ERROR since they are opportunistic and expected to be retried.
 
         Returns
         -------
@@ -217,15 +221,34 @@ class CheckpointQueue:
                 return count
             except Exception:
                 self._push_failures += 1
-                logger.exception(
-                    "Checkpoint flush FAILED (reason=%s); push_failures=%d",
-                    reason,
-                    self._push_failures,
-                    extra={
-                        "error_class": "checkpoint_queue.flush_failed",
-                        "incident_key": self._incident_key,
-                    },
-                )
+                # Timer-based flushes (debounce, max-delay) are opportunistic and
+                # expected to be retried by the next timer or mandatory flush.
+                # Log these at WARNING level to avoid triggering error_watcher
+                # auto-filing for transient failures (OOMPAH-1326).
+                # Manual flushes (terminal_status, shutdown, etc.) remain ERROR
+                # level since they are critical durable transitions.
+                if _timer_based:
+                    logger.warning(
+                        "Checkpoint flush FAILED (reason=%s); push_failures=%d; "
+                        "will retry on next timer or mandatory flush",
+                        reason,
+                        self._push_failures,
+                        extra={
+                            "error_class": "checkpoint_queue.flush_failed",
+                            "incident_key": self._incident_key,
+                        },
+                        exc_info=True,
+                    )
+                else:
+                    logger.exception(
+                        "Checkpoint flush FAILED (reason=%s); push_failures=%d",
+                        reason,
+                        self._push_failures,
+                        extra={
+                            "error_class": "checkpoint_queue.flush_failed",
+                            "incident_key": self._incident_key,
+                        },
+                    )
                 raise
 
     def retire(self) -> int:
@@ -318,7 +341,7 @@ class CheckpointQueue:
         Wraps ``flush()`` so that exceptions do not crash the timer thread.
         """
         try:
-            self.flush(reason=reason)
+            self.flush(reason=reason, _timer_based=True)
         except Exception:
             # Already logged in flush() — silently swallow here so the timer
             # thread terminates cleanly.

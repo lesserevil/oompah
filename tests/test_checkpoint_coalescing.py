@@ -20,6 +20,7 @@ Design reference: plans/state-branch-design.md § 5
 
 from __future__ import annotations
 
+import logging
 import subprocess
 import threading
 import time
@@ -1766,3 +1767,66 @@ class TestMaxDelayAutoCorrection:
 
         assert q._max_delay_ms == 6000, "Exactly debounce+1000 must not be corrected"
         mock_err.assert_not_called()
+
+    def test_timer_based_flush_logs_warning_not_error(self, caplog) -> None:
+        """Timer-based flush failures log at WARNING level to avoid error_watcher (OOMPAH-1326)."""
+        def fail():
+            raise RuntimeError("transient network error")
+
+        FakeTimer, _ = TestCheckpointQueueDebounce()._make_fake_timer_factory(False)
+        q = CheckpointQueue(
+            debounce_ms=100,
+            max_delay_ms=1100,
+            flush_fn=fail,
+            incident_key="state_branch:proj-test",
+            _timer_factory=FakeTimer,
+        )
+        q.schedule()
+
+        # Timer-based flush with _timer_based=True should log at WARNING level
+        with caplog.at_level("DEBUG"), pytest.raises(RuntimeError):
+            q.flush(reason="debounce", _timer_based=True)
+
+        # Find the checkpoint_queue log record
+        records = [r for r in caplog.records if r.name == "oompah.checkpoint_queue"]
+        assert len(records) >= 1
+        
+        # The failure record should be at WARNING level (not ERROR)
+        failure_record = next(
+            r for r in records 
+            if "flush FAILED" in r.message and r.levelno == logging.WARNING
+        )
+        assert failure_record.levelno == logging.WARNING
+        # error_class should still be present in extra fields for diagnostics
+        assert getattr(failure_record, "error_class", None) == "checkpoint_queue.flush_failed"
+
+    def test_manual_flush_logs_error_not_warning(self, caplog) -> None:
+        """Manual flush failures (critical) log at ERROR level to trigger error_watcher."""
+        def fail():
+            raise RuntimeError("critical permission denied")
+
+        FakeTimer, _ = TestCheckpointQueueDebounce()._make_fake_timer_factory(False)
+        q = CheckpointQueue(
+            debounce_ms=100,
+            max_delay_ms=1100,
+            flush_fn=fail,
+            incident_key="state_branch:proj-test",
+            _timer_factory=FakeTimer,
+        )
+        q.schedule()
+
+        # Manual flush (default _timer_based=False) should log at ERROR level
+        with caplog.at_level("DEBUG"), pytest.raises(RuntimeError):
+            q.flush(reason="terminal_status:Done", _timer_based=False)
+
+        # Find the checkpoint_queue log record
+        records = [r for r in caplog.records if r.name == "oompah.checkpoint_queue"]
+        assert len(records) >= 1
+        
+        # The failure record should be at ERROR level
+        failure_record = next(
+            r for r in records 
+            if "flush FAILED" in r.message and r.levelno == logging.ERROR
+        )
+        assert failure_record.levelno == logging.ERROR
+        assert getattr(failure_record, "error_class", None) == "checkpoint_queue.flush_failed"
