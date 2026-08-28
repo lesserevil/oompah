@@ -12,7 +12,7 @@ start_blocked_by: []
 labels: []
 assignee: null
 created_at: '2026-08-13T17:11:27.677981Z'
-updated_at: '2026-08-28T00:06:53.489870Z'
+updated_at: '2026-08-28T00:07:27.287536Z'
 work_branch: OOMPAH-1252
 target_branch: main
 review_url: https://github.com/lesserevil/oompah/pull/962
@@ -138,8 +138,8 @@ oompah.work_contributors:
     source_sha: 8b86f978cba5446b1091bd87753d6e1b9a47be4d
     completed_at: '2026-08-23T22:24:00.352824+00:00'
 oompah.task_costs:
-  total_input_tokens: 299
-  total_output_tokens: 21152
+  total_input_tokens: 305
+  total_output_tokens: 22925
   total_cost_usd: 0.0
   by_model:
     haiku:
@@ -147,8 +147,8 @@ oompah.task_costs:
       output_tokens: 8627
       cost_usd: 0.0
     unknown:
-      input_tokens: 23
-      output_tokens: 12525
+      input_tokens: 29
+      output_tokens: 14298
       cost_usd: 0.0
   runs:
   - profile: default
@@ -169,6 +169,12 @@ oompah.task_costs:
     output_tokens: 12525
     cost_usd: 0.0
     recorded_at: '2026-08-27T23:58:13.795852+00:00'
+  - profile: auditor
+    model: unknown
+    input_tokens: 6
+    output_tokens: 1773
+    cost_usd: 0.0
+    recorded_at: '2026-08-28T00:07:21.010914+00:00'
 oompah.integration:
   version: 2
   state: ready
@@ -664,5 +670,15 @@ Safe evidence:
 - service_test: tests/test_task_transition_service.py:866 test_backlog_direct_claim_requires_project_owner_authority
 - task_transition_service_emit_line: oompah/task_transition_service.py:1654 and 2292
 - authority_current: true
+---
+author: oompah
+created: 2026-08-28 00:07
+---
+Run #1 [attempt=1, profile=auditor, role=auditor -> Claude/sonnet]
+- Turns: 8, Tool calls: 3
+- Tokens: 6 in / 1.8K out [1.8K total]
+- Cost: $0.0000
+- Exit: normal, Duration: 2m 1s
+- Log: OOMPAH-1252__20260828T000534Z.jsonl
 ---
 <!-- COMMENTS:END -->
